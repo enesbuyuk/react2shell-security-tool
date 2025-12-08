@@ -3,9 +3,9 @@
 
 http.html:"__NEXT_DATA__" ssl.cert.subject.CN:*.com
 http.html:"_next/static" ssl.cert.subject.CN:*.com
-# http.html:"next-head-count" ssl.cert.subject.CN:*.com
-# http.component:"Next.js" ssl.cert.subject.CN:*.com
-# http.title:"Next.js" ssl.cert.subject.CN:*.com
-# http.html:"/_next/data/" ssl.cert.subject.CN:*.com
-# http.html:"self.__next" ssl.cert.subject.CN:*.com
-# http.html:"__NEXT_LOADED_PAGES__" ssl.cert.subject.CN:*.com
+http.html:"next-head-count" ssl.cert.subject.CN:*.com
+http.component:"Next.js" ssl.cert.subject.CN:*.com
+http.title:"Next.js" ssl.cert.subject.CN:*.com
+http.html:"/_next/data/" ssl.cert.subject.CN:*.com
+http.html:"self.__next" ssl.cert.subject.CN:*.com
+http.html:"__NEXT_LOADED_PAGES__" ssl.cert.subject.CN:*.com
