@@ -28,8 +28,8 @@ A comprehensive security testing toolkit for identifying and exploiting Next.js 
 
 ```bash
 # Clone the repository
-git clone https://github.com/emredavut/react2shell.git
-cd react2shell
+git clone https://github.com/enesbuyuk/react2shell-security-tool.git
+cd react2shell-security-tool
 
 # Install dependencies
 pip install -r requirements.txt
