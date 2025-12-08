@@ -12,7 +12,9 @@ A comprehensive security testing toolkit for identifying and exploiting Next.js 
 
 ## Screenshots
 
-![Main Menu](docs/screenshot-1.png)
+<div align="center">
+<img src="docs/screenshot-1.png" alt="Main Menu" width="300">
+</div>
 
 ## Features
 
