@@ -1,4 +1,4 @@
 .env*
 venv/
-!results/.gitkeep
 results/*
+!results/.gitkeep
