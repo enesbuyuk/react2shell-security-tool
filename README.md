@@ -143,3 +143,6 @@ This project is for educational purposes only. Use at your own risk.
 
 **Emre Davut**
 - GitHub: [@emredavut](https://github.com/emredavut) - [CVE-2025-55182](https://github.com/emredavut/CVE-2025-55182)
+
+**assetnote**
+- Github: [@assetnote](https://github.com/assetnote) - [react2shell-scanner](https://github.com/assetnote/react2shell-scanner)
