@@ -136,4 +136,4 @@ This project is for educational purposes only. Use at your own risk.
 ## Credits
 
 **Emre Davut**
-- GitHub: [@emredavut](https://github.com/emredavut)
+- GitHub: [@emredavut](https://github.com/emredavut) - [CVE-2025-55182](https://github.com/emredavut/CVE-2025-55182)
