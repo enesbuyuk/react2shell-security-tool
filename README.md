@@ -10,6 +10,10 @@
 
 A comprehensive security testing toolkit for identifying and exploiting Next.js React Server Components (RSC) vulnerabilities. This tool provides automated scanning, vulnerability detection, and exploitation capabilities for security researchers and penetration testers.
 
+## Screenshots
+
+![Main Menu](docs/screenshot-1.png)
+
 ## Features
 
 - **Automated Vulnerability Scanner** - Detect RSC vulnerabilities in Next.js applications
