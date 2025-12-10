@@ -107,6 +107,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 'command': command
             }
             
+            print(f"\n[+] Response from {target_url}")
+            print(f"    Status: {response.status_code}")
+            print(f"    Command: {command}")
+            if response.headers.get('X-Action-Redirect'):
+                print(f"    Redirect: {response.headers.get('X-Action-Redirect')}")
+            print(f"    Body: {response.text[:500]}")
+            
            
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
